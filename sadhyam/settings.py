@@ -37,6 +37,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'smart_selects',
+    'redactor',
+    'quiz',
+    'qresponse',
+    'user_category',
+    'tastypie',
 ]
 
 MIDDLEWARE = [
@@ -114,7 +120,21 @@ USE_L10N = True
 USE_TZ = True
 
 
+# Redactor Settings
+
+REDACTOR_OPTIONS = {'lang': 'en'}
+
+REDACTOR_UPLOAD = 'uploads/'
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
+
+MEDIA_URL = '/media/'
+
+MEDIA_ROOT = os.path.join(BASE_DIR,'media')

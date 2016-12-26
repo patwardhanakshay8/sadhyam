@@ -1,0 +1,8 @@
+Django==1.10.4
+django-smart-selects==1.2.6
+django-tastypie==0.13.3
+django-wysiwyg-redactor==0.4.9.1
+Pillow==3.4.2
+python-dateutil==2.6.0
+python-mimeparse==1.6.0
+six==1.10.0
