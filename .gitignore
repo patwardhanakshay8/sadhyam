@@ -1,3 +1,10 @@
+# Media
+media/*
+
+# Database file
+db.sqlite3
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -53,7 +60,9 @@ coverage.xml
 # Django stuff:
 *.log
 local_settings.py
-quiz/migrations
+quiz/migrations/*
+user_category/migrations/*
+qresponse/migrations/*
 
 # Flask stuff:
 instance/
