@@ -63,6 +63,7 @@ local_settings.py
 quiz/migrations/*
 user_category/migrations/*
 qresponse/migrations/*
+tip/migrations/*
 
 # Flask stuff:
 instance/
