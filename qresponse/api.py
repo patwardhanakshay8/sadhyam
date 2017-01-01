@@ -6,9 +6,10 @@ from django.db import IntegrityError
 from tastypie.exceptions import BadRequest
 from tastypie.http import HttpUnauthorized, HttpForbidden, HttpResponse
 from tastypie.resources import ModelResource,ALL,ALL_WITH_RELATIONS
-from tastypie.authentication import Authentication
+from tastypie.authentication import Authentication,ApiKeyAuthentication,MultiAuthentication
 from tastypie.authorization import DjangoAuthorization,Authorization
 from tastypie.utils import trailing_slash
+from tastypie.models import *
 from tastypie import fields
 
 from qresponse.models import *
@@ -26,7 +27,7 @@ class QResponseResource(ModelResource):
 	class Meta:
 		limit = 0
 		queryset = QResponse.objects.all()
-		authentication = Authentication()
+		authentication = ApiKeyAuthentication()
 		authorization = Authorization()
 		resource_name = 'qresponse'
 		allowed_methods = ['get','post']
@@ -48,14 +49,12 @@ class QResponseResource(ModelResource):
 		response_obj = bundle.data['response_obj']
 		
 		if response_obj:
-			if bundle.request.user and bundle.request.user.is_authenticated():
+			if ApiKey.objects.filter(user__username=bundle.request.GET['username'],key=bundle.request.GET['api_key']):
 				for r in response_obj:
-					print r['test_code']
 					qresponse = QResponse.objects.get(test_code=r['test_code'],question__id=r['question_id'])
 					qresponse.response = r['response']
 					qresponse.time_taken = r['time_taken']
 					question = Question.objects.get(id=r['question_id'])
-					print question
 					if r['response'] == question.correct_ans:
 						qresponse.correct = True
 						qresponse.marks_obtained += qresponse.correct_ans_marks
@@ -68,6 +67,51 @@ class QResponseResource(ModelResource):
 			raise BadRequest('Fields are missing.')
 
 		return bundle
+
+class PracticeResultResource(ModelResource):
+	subscriber = fields.ForeignKey(SubscriberResource,attribute='subscriber')
+
+	class Meta:
+		limit = 0
+		queryset = PracticeResult.objects.all()
+		authentication = ApiKeyAuthentication()
+		authorization = Authorization()
+		resource_name = 'practice_result'
+		allowed_methods = ['get','post']
+		filtering = {
+			'subscriber' : ALL_WITH_RELATIONS,
+			'timestamp' : ALL,
+
+		}
+
+	def dehydrate(self,bundle):
+		bundle.data['subscriber'] = bundle.obj.subscriber.user.username
+		return bundle
+
+	def obj_create(self,bundle,request=None,**kwargs):
+		subscriber = bundle.data['subscriber']
+		marks_obtained = bundle.data['marks_obtained']
+		total_marks = bundle.data['total_marks']
+
+		if subscriber and marks_obtained and total_marks:
+			if ApiKey.objects.filter(user__username=bundle.request.GET['username'],key=bundle.request.GET['api_key']):
+				subscriber = Subscriber.objects.get(user__username=subscriber)
+				if subscriber:
+					practice_result = PracticeResult()
+					practice_result.subscriber = subscriber
+					practice_result.marks_obtained = marks_obtained
+					practice_result.total_marks = total_marks
+					practice_result.save()
+				else:
+					raise BadRequest('Subscriber does not exist.')
+			else:
+				raise BadRequest('User is not authenticated.')
+		else:
+			raise BadRequest('Fields are missing.')
+
+		return bundle
+
+
 
 
 

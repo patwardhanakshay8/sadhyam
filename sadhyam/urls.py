@@ -20,12 +20,14 @@ from django.conf.urls.static import static
 from quiz import urls
 from user_category import urls
 from qresponse import urls
+from tip import urls
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^api/quiz/',include('quiz.urls')),
     url(r'^api/subscriber/',include('user_category.urls')),
     url(r'^api/qresponse/',include('qresponse.urls')),
+    url(r'^api/tip/',include('tip.urls')),
     url(r'^chaining/', include('smart_selects.urls')),
     url(r'^redactor/', include('redactor.urls')),
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

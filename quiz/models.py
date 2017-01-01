@@ -12,6 +12,7 @@ DIFFICULTY = (
 	)
 
 TYPE_OF_QUESTION = (
+	('Daily Practice','Daily Practice'),
 	('Practice','Practice'),
 	('Test','Test'),
 	)

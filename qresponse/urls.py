@@ -4,9 +4,10 @@ from qresponse.api import *
 
 v1_api = Api(api_name='v1')
 v1_api.register(QResponseResource())
+v1_api.register(PracticeResultResource())
 
 urlpatterns = [    
-    url(r'^',include(v1_api.urls)),    
+	url(r'^',include(v1_api.urls)),    
 ]
 
 

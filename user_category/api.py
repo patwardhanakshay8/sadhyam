@@ -7,9 +7,10 @@ from django.db.models import Sum
 from tastypie.exceptions import BadRequest
 from tastypie.http import HttpUnauthorized, HttpForbidden, HttpResponse
 from tastypie.resources import ModelResource,ALL,ALL_WITH_RELATIONS
-from tastypie.authentication import Authentication
+from tastypie.authentication import ApiKeyAuthentication,Authentication,MultiAuthentication
 from tastypie.authorization import DjangoAuthorization,Authorization
 from tastypie.utils import trailing_slash
+from tastypie.models import *
 from tastypie import fields
 
 from user_category.models import *
@@ -23,8 +24,10 @@ class UserResource(ModelResource):
 		queryset = User.objects.all()
 		fields = ['first_name', 'last_name', 'email']
 		allowed_methods = ['get', 'post']
-		# authorization = DjangoAuthorization()
 		resource_name = 'user'
+		filtering = {
+			"email" : ALL
+		}
 
 	def prepend_urls(self):
 		return [
@@ -42,16 +45,33 @@ class UserResource(ModelResource):
 	def obj_create(self, bundle, request=None, **kwargs):
 		username, password, first_name, last_name, email = bundle.data['username'], bundle.data['password'], bundle.data['first_name'], bundle.data['last_name'], bundle.data['email']
 		try:
-			bundle.obj = User.objects.create_user(username, email , password, first_name, last_name)
+			if username and password:				
+				bundle.obj = User.objects.create_user(username=username, email=email , password=password, first_name=first_name, last_name=last_name)
+			else:
+				bundle.obj = User.objects.create_user(username=username, email=email, first_name=first_name, last_name=last_name)
 			if bundle.obj:
+				if 'token' in bundle.data:
+					# Create Access token for a user 
+					api_key = ApiKey()
+					api_key.user = bundle.obj
+					api_key.key = token
+					api_key.save()
+				else:
+					api_key = ApiKey.objects.create(user=bundle.obj)
+				# Create Subscriber object
 				subscriber = Subscriber()
 				subscriber.user = bundle.obj
-				subscriber.date_of_birth = bundle.data['date_of_birth']
-				subscriber.profession = bundle.data['profession']
-				subscriber.educational_qualification = bundle.data['educational_qualification']
-				if bundle.data['student']:
+				if 'date_of_birth' in bundle.data:
+					subscriber.date_of_birth = bundle.data['date_of_birth']
+				else:
+					subscriber.date_of_birth = '1993-12-19'
+				if 'profession' in bundle.data:
+					subscriber.profession = bundle.data['profession']
+				if 'educational_qualification' in bundle.data:
+					subscriber.educational_qualification = bundle.data['educational_qualification']
+				if 'student' in bundle.data:
 					subscriber.student = bundle.data['student']
-				elif bundle.data['mentor']:
+				elif 'mentor' in bundle.data:
 					subscriber.mentor = bundle.data['mentor']
 				else:
 					subscriber.student = True
@@ -68,9 +88,20 @@ class UserResource(ModelResource):
 		user = authenticate(username=username, password=password)
 		if user:
 			if user.is_active:
+				subscriber_obj = {}
+				subscriber = Subscriber.objects.get(user=user)
+				subscriber_obj['user'] = subscriber.user
+				subscriber_obj['date_of_birth'] = subscriber.date_of_birth
+				subscriber_obj['profession'] = subscriber.profession
+				subscriber_obj['educational_qualification'] = subscriber.educational_qualification
+				subscriber_obj['student'] = subscriber.student
+				subscriber_obj['mentor'] = subscriber.mentor
+				api_key = ApiKey.objects.get(user=user)
+				subscriber_obj['api_key'] = api_key.key
 				login(request, user)
 				return self.create_response(request, {
-					'success': True
+					'success': True,
+					'subscriber': subscriber_obj
 				})
 			else:
 				return self.create_response(request, {
@@ -85,7 +116,7 @@ class UserResource(ModelResource):
 
 	def logout(self, request, **kwargs):
 		self.method_check(request, allowed=['get'])
-		if request.user and request.user.is_authenticated():
+		if ApiKey.objects.filter(user__username=request.GET['username'],key=request.GET['api_key']):
 			logout(request)
 			return self.create_response(request, { 'success': True })
 		else:
@@ -95,21 +126,21 @@ class UserResource(ModelResource):
 		self.method_check(request,allowed=['post'])
 		data = json.loads(request.body)
 		updated_data = {}
-		if request.user and request.user.is_authenticated():
-			subscriber = Subscriber.objects.get(user=request.user)
+		if ApiKey.objects.filter(user__username=request.GET['username'],key=request.GET['api_key']):		
+			subscriber = Subscriber.objects.get(user__username=request.GET['username'])
 			if 'date_of_birth' in data:
 				subscriber.date_of_birth = data['date_of_birth']
 				updated_data['date_of_birth'] = True
-			elif 'profession' in data:
+			if 'profession' in data:
 				subscriber.profession = data['profession']
 				updated_data['profession'] = True
-			elif 'educational_qualification' in data:
+			if 'educational_qualification' in data:
 				subscriber.educational_qualification = data['educational_qualification']
 				updated_data['educational_qualification'] = True
-			elif 'student' in data:
+			if 'student' in data:
 				subscriber.student = data['student']
 				updated_data['student'] = True
-			elif 'mentor' in data:
+			if 'mentor' in data:
 				subscriber.mentor = data['mentor']
 				updated_data['mentor'] = True
 			subscriber.save()
@@ -124,12 +155,13 @@ class SubscriberResource(ModelResource):
 	class Meta:
 		limit = 0
 		queryset = Subscriber.objects.all()
-		authentication = Authentication()
+		authentication = ApiKeyAuthentication()
 		authorization = Authorization()
 		resource_name = 'subscriber'
 		allowed_methods = ['get']
 		excludes = ['timestamp']
 		filtering = {
+			'user' : ALL_WITH_RELATIONS,
 			'student' : ALL,
 			'mentor' : ALL
 		}
@@ -144,7 +176,7 @@ class ExamSubscribedResource(ModelResource):
 	class Meta:
 		limit = 0
 		queryset = ExamSubscribed.objects.all()
-		authentication = Authentication()
+		authentication = ApiKeyAuthentication()
 		authorization = Authorization()
 		resource_name = 'exam_subscribed'
 		allowed_methods = ['get','post','delete']
@@ -164,7 +196,7 @@ class ExamSubscribedResource(ModelResource):
 		exam_subscribed = bundle.data['exam_subscribed']
 
 		if subscriber and exam_subscribed:
-			if bundle.request.user and bundle.request.user.is_authenticated():
+			if ApiKey.objects.filter(user__username=request.GET['username'],key=request.GET['api_key']):
 				subscriber = Subscriber.objects.get(user__username=subscriber)
 				exam = Exam.objects.get(title=exam_subscribed)
 				exam_subscribed = ExamSubscribed.objects.filter(subscriber=subscriber,exam_subscribed=exam)
@@ -185,7 +217,7 @@ class TestResource(ModelResource):
 	class Meta:
 		limit = 0 
 		queryset = Test.objects.all()
-		authentication = Authentication()
+		authentication = ApiKeyAuthentication()
 		authorization = Authorization()
 		resource_name = 'test'
 		allowed_methods = ['get','post','delete']
@@ -212,7 +244,7 @@ class TestResource(ModelResource):
 		subscriber = bundle.data['subscriber']
 
 		if test_template and subscriber:
-			if bundle.request.user and bundle.request.user.is_authenticated():
+			if ApiKey.objects.filter(user__username=request.GET['username'],key=request.GET['api_key']):
 				test_template = TestTemplate.objects.get(title=test_template)
 				subscriber = Subscriber.objects.get(user__username=subscriber)
 				bundle.obj = Test.objects.create(test_template=test_template,subscriber=subscriber)
@@ -226,7 +258,7 @@ class TestResource(ModelResource):
 		self.method_check(request, allowed=['post'])
 		data = json.loads(request.body)
 		if data['test_code'] and data['subscriber']:
-			if request.user and request.user.is_authenticated():
+			if ApiKey.objects.filter(user__username=request.GET['username'],key=request.GET['api_key']):
 				subscriber = Subscriber.objects.get(user__username=data['subscriber'])
 				test_submit = Test.objects.filter(test_code=data['test_code'],subscriber=subscriber)
 				if test_submit:				

@@ -21,3 +21,11 @@ class QResponse(models.Model):
 	def __unicode__(self):
 		return format(self.test_code)
 
+class PracticeResult(models.Model):
+	subscriber = models.ForeignKey(Subscriber)
+	marks_obtained = models.FloatField(default=0.0)
+	total_marks = models.FloatField(default=0.0)
+	timestamp = models.DateTimeField(auto_now=True)
+
+	def __unicode__(self):
+		return format(self.subscriber)
